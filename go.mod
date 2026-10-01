@@ -3,7 +3,7 @@ module github.com/Silo-Server/silo-plugin-watchprovider-trakt
 go 1.26.4
 
 require (
-	github.com/Silo-Server/silo-plugin-sdk v0.20.0
+	github.com/Silo-Server/silo-plugin-sdk v0.21.0
 	golang.org/x/time v0.16.0
 	google.golang.org/protobuf v1.36.11
 )

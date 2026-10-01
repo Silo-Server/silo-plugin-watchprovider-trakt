@@ -7,8 +7,8 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 )
 
-// listItem is a movie or show sent to a favorites, watchlist, or rating
-// endpoint. index is its position in the event group.
+// listItem is a movie or show sent to a favorites, watchlist, dropped, or
+// rating endpoint. index is its position in the event group.
 type listItem struct {
 	index int
 	kind  string
@@ -45,29 +45,44 @@ func indexesOf(items []listItem) []int {
 	return indexes
 }
 
-// applyListEvents adds titles to or removes them from favorites or the
-// watchlist in one request. Both endpoints accept and echo the same
-// {movies, shows} id payload.
+// listWrite is the Trakt endpoint for one list operation.
+type listWrite struct {
+	path   string
+	remove bool
+	// showsOnly is set for drops: Trakt drops shows, not movies.
+	showsOnly bool
+}
+
+var listWrites = map[pluginv1.WatchSyncOperation]listWrite{
+	pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_FAVORITE:          {path: "/sync/favorites"},
+	pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FAVORITE:       {path: "/sync/favorites/remove", remove: true},
+	pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_TO_WATCHLIST:      {path: "/sync/watchlist"},
+	pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FROM_WATCHLIST: {path: "/sync/watchlist/remove", remove: true},
+	pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_MARK_DROPPED:          {path: "/users/hidden/dropped", showsOnly: true},
+	pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_UNMARK_DROPPED:        {path: "/users/hidden/dropped/remove", remove: true, showsOnly: true},
+}
+
+// accepts reports whether the list holds titles of kind.
+func (w listWrite) accepts(kind string) bool {
+	return kind == kindSeries || (kind == kindMovie && !w.showsOnly)
+}
+
+// applyListEvents adds titles to or removes them from favorites, the
+// watchlist, or the dropped shows in one request. The endpoints accept and
+// echo the same {movies, shows} id payload.
 func applyListEvents(ctx context.Context, client *apiClient, operation pluginv1.WatchSyncOperation, group eventGroup) *pluginv1.WatchSyncFault {
-	var path string
-	remove := false
-	switch operation {
-	case pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_FAVORITE:
-		path = "/sync/favorites"
-	case pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FAVORITE:
-		path, remove = "/sync/favorites/remove", true
-	case pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_TO_WATCHLIST:
-		path = "/sync/watchlist"
-	default:
-		path, remove = "/sync/watchlist/remove", true
+	write := listWrites[operation]
+	wrongKind := "Trakt favorites and watchlist hold movies and shows only"
+	if write.showsOnly {
+		wrongKind = "Trakt drops shows only"
 	}
 	var payload traktIDList
 	items := make([]listItem, 0, len(group.pending))
 	for _, index := range group.pending {
 		item, ok := listItemFrom(group.events[index])
 		switch {
-		case !ok || (item.kind != kindMovie && item.kind != kindSeries):
-			group.reject(index, "Trakt favorites and watchlist hold movies and shows only")
+		case !ok || !write.accepts(item.kind):
+			group.reject(index, wrongKind)
 			continue
 		case !sendableIDs(item.ids):
 			group.reject(index, "List event needs an IMDb, TMDB, TVDB, or Trakt ID")
@@ -81,10 +96,10 @@ func applyListEvents(ctx context.Context, client *apiClient, operation pluginv1.
 		return nil
 	}
 	var response traktNotFoundResponse
-	if _, _, fault := client.do(ctx, http.MethodPost, path, nil, payload, &response); fault != nil {
+	if _, _, fault := client.do(ctx, http.MethodPost, write.path, nil, payload, &response); fault != nil {
 		return group.fail(indexesOf(items), fault)
 	}
-	group.settle(items, response.NotFound, remove)
+	group.settle(items, response.NotFound, write.remove)
 	return nil
 }
 

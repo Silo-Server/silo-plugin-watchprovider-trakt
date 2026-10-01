@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.watchprovider.trakt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -13,7 +13,7 @@
       "type": "watch_sync_provider.v1",
       "id": "trakt",
       "display_name": "Trakt",
-      "description": "Two-way watch history, resume progress, favorites, watchlist, and movie and show ratings, plus live scrobbling, for Trakt accounts.",
+      "description": "Two-way watch history, resume progress, favorites, watchlist, movie and show ratings, and dropped shows, plus live scrobbling, for Trakt accounts.",
       "watch_sync_provider": {
         "auth_methods": ["WATCH_SYNC_AUTH_METHOD_DEVICE_CODE"],
         "export_watched": true,
@@ -29,6 +29,7 @@
         "scrobble_playback": true,
         "import_ratings": true,
         "export_ratings": true,
+        "sync_dropped": true,
         "supported_media_types": [
           "WATCH_SYNC_MEDIA_TYPE_MOVIE",
           "WATCH_SYNC_MEDIA_TYPE_EPISODE",
@@ -71,8 +72,8 @@
   "category": "Watch Providers",
   "presentation": {
     "display_name": "Trakt Watch Provider",
-    "summary": "Sync Silo watch activity, lists, and ratings with Trakt.",
-    "description_markdown": "Imports watched movies and episodes, resume progress, favorites, the watchlist, and movie and show ratings from Trakt. Exports completed plays, unwatched titles, favorites, watchlist changes, and ratings, and forwards live playback start, pause, and stop events.",
+    "summary": "Sync Silo watch activity, lists, ratings, and dropped shows with Trakt.",
+    "description_markdown": "Imports watched movies and episodes, resume progress, favorites, the watchlist, movie and show ratings, and dropped shows from Trakt. Exports completed plays, unwatched titles, favorites, watchlist changes, ratings, and dropped shows, and forwards live playback start, pause, and stop events.",
     "setup_markdown": "Create an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with the redirect URI `urn:ietf:wg:oauth:2.0:oob`, then enter its client ID and client secret below. Each Silo profile then connects its own Trakt account from its watch-provider settings by entering a code at trakt.tv/activate.",
     "homepage_url": "https://trakt.tv",
     "source_url": "https://github.com/Silo-Server/silo-plugin-watchprovider-trakt",

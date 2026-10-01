@@ -38,8 +38,7 @@ func TestManifestIdentifiesTheTraktProvider(t *testing.T) {
 	}
 }
 
-// The descriptor advertises what the built-in provider did, except dropped
-// shows, which the plugin contract cannot express yet.
+// The descriptor advertises what the built-in provider did.
 func TestManifestAdvertisesTheBuiltInCapabilities(t *testing.T) {
 	t.Parallel()
 	descriptor := loadManifest(t).GetCapabilities()[0].GetWatchSyncProvider()
@@ -57,11 +56,17 @@ func TestManifestAdvertisesTheBuiltInCapabilities(t *testing.T) {
 		"scrobble_playback": descriptor.GetScrobblePlayback(),
 		"import_ratings":    descriptor.GetImportRatings(),
 		"export_ratings":    descriptor.GetExportRatings(),
+		"sync_dropped":      descriptor.GetSyncDropped(),
 	}
 	for flag, set := range flags {
 		if !set {
 			t.Errorf("%s is not advertised", flag)
 		}
+	}
+	// Rating a title on Trakt does not mark it watched, so no rating waits
+	// for a play.
+	if gated := descriptor.GetRatingExportRequiresWatched(); len(gated) != 0 {
+		t.Errorf("rating_export_requires_watched = %v, want none", gated)
 	}
 	if descriptor.GetProvidesWatchlistOrder() {
 		t.Error("provides_watchlist_order is advertised; Trakt's watchlist order is not synced")

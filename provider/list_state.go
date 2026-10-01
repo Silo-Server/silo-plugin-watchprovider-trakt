@@ -92,6 +92,8 @@ func listingsFor(kind pluginv1.WatchSyncRemoteStateKind) []listing {
 			{name: "movie ratings", path: "/sync/ratings/movies", states: ratedMovieStates},
 			{name: "show ratings", path: "/sync/ratings/shows", states: ratedShowStates},
 		}
+	case pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_DROPPED:
+		return []listing{{name: "dropped shows", path: "/users/hidden/dropped", states: droppedShowStates}}
 	default:
 		return nil
 	}
@@ -104,6 +106,7 @@ var allStateKinds = []pluginv1.WatchSyncRemoteStateKind{
 	pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_FAVORITE,
 	pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_WATCHLIST,
 	pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_RATING,
+	pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_DROPPED,
 }
 
 // traversalPlan returns the listings for the requested families and a

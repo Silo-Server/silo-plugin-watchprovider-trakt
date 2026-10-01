@@ -22,6 +22,7 @@ var (
 	kindFavorite  = pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_FAVORITE
 	kindWatchlist = pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_WATCHLIST
 	kindRating    = pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_RATING
+	kindDropped   = pluginv1.WatchSyncRemoteStateKind_WATCH_SYNC_REMOTE_STATE_KIND_DROPPED
 )
 
 // hostRow is what the host reads from a remote state (remoteIdentityFromProto
@@ -36,8 +37,9 @@ type hostRow struct {
 	SeriesIMDbID, SeriesTMDBID, SeriesTVDBID       string
 	SeasonNumber, EpisodeNumber, PlayCount, Rating int
 	LastWatchedAt, PausedAt, FavoritedAt, RatedAt  time.Time
+	DroppedAt                                      time.Time
 	ProgressPercent                                float64
-	Favorite, Watchlist                            bool
+	Favorite, Watchlist, Dropped                   bool
 }
 
 func hostRowFrom(state *pluginv1.WatchSyncRemoteState) hostRow {
@@ -63,6 +65,13 @@ func hostRowFrom(state *pluginv1.WatchSyncRemoteState) hostRow {
 	}
 	if rating := state.GetRating(); rating != nil {
 		row.Rating, row.RatedAt = int(rating.GetRating()), rating.GetRatedAt().AsTime()
+	}
+	if dropped := state.GetDropped(); dropped != nil {
+		row.Dropped = true
+		// The host leaves the drop time unknown without a valid listed_at.
+		if listedAt := dropped.GetListedAt(); listedAt.CheckValid() == nil {
+			row.DroppedAt = listedAt.AsTime()
+		}
 	}
 	return row
 }
@@ -783,6 +792,52 @@ func TestListRatingsReadsMoviesAndShowsAsCompleteSnapshots(t *testing.T) {
 	}
 	if got := hostRows(result.items); !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// Ported from the built-in provider's TestFetchDroppedReadsDroppedShowsAsCompleteSnapshot.
+// Rows that are not shows are skipped, and a row without hidden_at leaves the
+// drop time unknown.
+func TestListDroppedReadsDroppedShowsAsCompleteSnapshot(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/hidden/dropped" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("limit") != "250" || r.URL.Query().Get("page") != "1" || r.URL.Query().Has("type") {
+			t.Errorf("query = %s, want limit 250, page 1, and no type", r.URL.RawQuery)
+		}
+		w.Header().Set("X-Pagination-Page-Count", "1")
+		writeFixture(t, w, `[
+			{"hidden_at":"2026-03-01T10:00:00.000Z","type":"show","show":{"title":"Rick and Morty","year":2013,"ids":{"trakt":69293,"imdb":"tt2861424","tmdb":60625,"tvdb":275274}}},
+			{"hidden_at":"2026-03-02T10:00:00.000Z","type":"movie","movie":{"title":"Heat","ids":{"trakt":1}}},
+			{"show":{"title":"Severance","year":2022,"ids":{"trakt":154997,"imdb":"tt11280740","tmdb":95396}}}
+		]`)
+	}))
+	defer upstream.Close()
+	server, _ := newTestServer(t, upstream)
+
+	result := traverse(t, server, kindDropped)
+	if result.fault != nil {
+		t.Fatal(faultText(result.fault))
+	}
+	if result.calls != 1 {
+		t.Fatalf("calls = %d, want one", result.calls)
+	}
+	want := []hostRow{
+		{
+			Key: "tvdb:275274", Kind: kindSeries, Title: "Rick and Morty", Year: 2013, IMDbID: "tt2861424", TMDBID: "60625", TVDBID: "275274",
+			Dropped: true, DroppedAt: time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC),
+		},
+		{Key: "tmdb:95396", Kind: kindSeries, Title: "Severance", Year: 2022, IMDbID: "tt11280740", TMDBID: "95396", Dropped: true},
+	}
+	if got := hostRows(result.items); !reflect.DeepEqual(got, want) {
+		t.Fatalf("rows =\n%+v\nwant\n%+v", got, want)
+	}
+	if listedAt := result.items[1].GetDropped().GetListedAt(); listedAt != nil {
+		t.Fatalf("listed_at = %v, want none for a row without hidden_at", listedAt)
 	}
 }
 

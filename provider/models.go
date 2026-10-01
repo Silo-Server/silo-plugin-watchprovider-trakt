@@ -93,6 +93,13 @@ type traktRatedShow struct {
 	Show    traktShow `json:"show"`
 }
 
+// traktDroppedShow is a row of the dropped hidden-items listing.
+type traktDroppedShow struct {
+	HiddenAt time.Time `json:"hidden_at"`
+	Type     string    `json:"type"`
+	Show     traktShow `json:"show"`
+}
+
 type traktUserSettings struct {
 	User struct {
 		Username string `json:"username"`
@@ -178,7 +185,8 @@ type traktHistoryRemoveShowEpisode struct {
 }
 
 // traktIDList is the {movies, shows} id payload that favorites, the
-// watchlist, and rating removal accept, and the shape of their not_found echo.
+// watchlist, dropped shows, and rating removal accept, and the shape of their
+// not_found echo.
 type traktIDList struct {
 	Movies []traktIDItem `json:"movies,omitempty"`
 	Shows  []traktIDItem `json:"shows,omitempty"`

@@ -296,7 +296,9 @@ func batched(operation pluginv1.WatchSyncOperation) bool {
 		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_TO_WATCHLIST,
 		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FROM_WATCHLIST,
 		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_SET_RATING,
-		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_RATING:
+		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_RATING,
+		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_MARK_DROPPED,
+		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_UNMARK_DROPPED:
 		return true
 	default:
 		return false
@@ -331,7 +333,9 @@ func (s *Server) applyGroup(ctx context.Context, client *apiClient, stopAt time.
 	case pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_FAVORITE,
 		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FAVORITE,
 		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_ADD_TO_WATCHLIST,
-		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FROM_WATCHLIST:
+		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_FROM_WATCHLIST,
+		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_MARK_DROPPED,
+		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_UNMARK_DROPPED:
 		return applyListEvents(ctx, client, operation, group)
 	case pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_SET_RATING,
 		pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_REMOVE_RATING:

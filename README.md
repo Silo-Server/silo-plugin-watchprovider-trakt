@@ -2,6 +2,8 @@
 
 Syncs Silo profiles with their [Trakt](https://trakt.tv) accounts through Silo's `watch_sync_provider.v1` plugin contract. It replaces the Trakt provider that was built into the Silo server, with the same behavior and the same stored identifiers, so existing connections carry over.
 
+Version 0.2.0 needs a Silo server whose plugin host supports `silo-plugin-sdk` v0.21, the release that added dropped shows to the contract. An older server ignores the plugin's dropped-show support and syncs everything else.
+
 ## Capabilities
 
 - Signs each profile in with Trakt's device code: Silo shows a code, and the profile owner enters it at trakt.tv/activate.
@@ -11,6 +13,7 @@ Syncs Silo profiles with their [Trakt](https://trakt.tv) accounts through Silo's
 - Exports completed plays. Trakt stores every play it receives, repeats included, so before writing a batch the plugin reads the Trakt history around those plays and skips any play Trakt already has in the same minute.
 - Exports unwatched titles. Trakt removes history by title, so this clears every play of the title.
 - Adds and removes favorites and watchlist entries, and sets and clears movie and show ratings. Trakt uses the same 1–10 rating scale as the plugin contract.
+- Syncs dropped shows both ways. Dropping a show on Trakt hides it from Up Next, progress, and the calendar without touching its history, and Trakt undrops a show on its own when it is watched again. The plugin imports Trakt's dropped shows as a complete list, and drops and undrops shows on Trakt in batches. Dropping a show that is already dropped, or undropping one that is not, succeeds without a change. Trakt's dropped list leaves out drops that apps make, Silo's included, so Silo keeps a drop it sent rather than reading the omission as an undrop.
 - Sends live playback start, pause, and stop events. Trakt records a play when a stop arrives at 80% progress or later.
 
 ### How the plugin reads Trakt
@@ -35,13 +38,9 @@ The first sync reads each account in full, as every Trakt sync does. Plays and r
 
 A connection whose refresh token Trakt issued before its 2026 sign-in migration fails with "reconnect Trakt" under the plugin, as it did under the built-in provider. Signing in again fixes it.
 
-## Not yet supported
-
-- **Dropped shows.** The built-in provider synced shows dropped from Trakt's Up Next. The plugin contract does not express dropped shows yet; support follows in a later plugin release.
-
 ## Development
 
-The plugin builds against `silo-plugin-sdk` v0.20.0.
+The plugin builds against `silo-plugin-sdk` v0.21.0.
 
 ```bash
 make test

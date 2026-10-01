@@ -165,6 +165,97 @@ func TestListAccountLimitIsAConnectionFault(t *testing.T) {
 	}
 }
 
+var droppedOperations = []struct {
+	name      string
+	operation pluginv1.WatchSyncOperation
+	path      string
+	remove    bool
+}{
+	{"drop", pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_MARK_DROPPED, "/users/hidden/dropped", false},
+	{"undrop", pluginv1.WatchSyncOperation_WATCH_SYNC_OPERATION_UNMARK_DROPPED, "/users/hidden/dropped/remove", true},
+}
+
+// Ported from the built-in provider's TestExportAndRemoveDroppedPostShowsAndMapNotFound:
+// drops and undrops send the batch's shows in one request, never a movie, and
+// a show Trakt does not know cannot be dropped and has nothing to undrop.
+func TestDroppedEventsPostShowsAndMapNotFound(t *testing.T) {
+	t.Parallel()
+	for _, op := range droppedOperations {
+		t.Run(op.name, func(t *testing.T) {
+			t.Parallel()
+			known := seriesEvent("series-1", op.operation, map[string]string{"tmdb": "1"})
+			known.ProviderItemKey = "tmdb:1"
+			unknown := seriesEvent("series-2", op.operation, map[string]string{"tmdb": "2"})
+			unknown.ProviderItemKey = "tmdb:2"
+			movie := movieEvent("movie-1", op.operation, map[string]string{"tmdb": "3"})
+			movie.ProviderItemKey = "tmdb:3"
+			body, got := runList(t, op.path, `{"movies":[],"shows":[{"ids":{"tmdb":2}}]}`, known, unknown, movie)
+			want := traktIDList{Shows: []traktIDItem{{IDs: traktIDs{TMDB: 1}}, {IDs: traktIDs{TMDB: 2}}}}
+			if !reflect.DeepEqual(body, want) {
+				t.Fatalf("body = %+v, want the two shows only", body)
+			}
+			missing := pluginv1.WatchSyncApplyStatus_WATCH_SYNC_APPLY_STATUS_REJECTED
+			if op.remove {
+				missing = pluginv1.WatchSyncApplyStatus_WATCH_SYNC_APPLY_STATUS_NO_CHANGE
+			}
+			wantStatuses := map[string]pluginv1.WatchSyncApplyStatus{
+				"series-1": pluginv1.WatchSyncApplyStatus_WATCH_SYNC_APPLY_STATUS_APPLIED,
+				"series-2": missing,
+				"movie-1":  pluginv1.WatchSyncApplyStatus_WATCH_SYNC_APPLY_STATUS_REJECTED,
+			}
+			if !reflect.DeepEqual(got, wantStatuses) {
+				t.Fatalf("statuses = %v, want %v", got, wantStatuses)
+			}
+		})
+	}
+}
+
+// Dropping a dropped show or undropping one that is not dropped changes
+// nothing on Trakt, which reports zero changes and no missing show; the
+// write still converges as applied.
+func TestDroppedEventsConvergeWhenTraktChangesNothing(t *testing.T) {
+	t.Parallel()
+	for _, op := range droppedOperations {
+		t.Run(op.name, func(t *testing.T) {
+			t.Parallel()
+			show := seriesEvent("series-1", op.operation, nil)
+			show.ProviderItemKey = "tvdb:275274"
+			body, got := runList(t, op.path, `{"movies":[],"shows":[],"seasons":[],"users":[]}`, show)
+			if len(body.Shows) != 1 || body.Shows[0].IDs != (traktIDs{TVDB: 275274}) || len(body.Movies) != 0 {
+				t.Fatalf("body = %+v, want the show by the id its key encodes", body)
+			}
+			if got["series-1"] != pluginv1.WatchSyncApplyStatus_WATCH_SYNC_APPLY_STATUS_APPLIED {
+				t.Fatalf("status = %v, want applied", got["series-1"])
+			}
+		})
+	}
+}
+
+// Episodes, and shows without an id Trakt accepts, are rejected without a
+// request. A rejected undrop makes the host retry it instead of treating the
+// show as undropped.
+func TestDroppedEventsRejectEpisodesAndShowsWithoutIDsUnsent(t *testing.T) {
+	t.Parallel()
+	requests := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
+	defer upstream.Close()
+	server, _ := newTestServer(t, upstream)
+
+	for _, op := range droppedOperations {
+		episode := &pluginv1.WatchSyncEvent{EventId: op.name + "-episode", Operation: op.operation,
+			Media: &pluginv1.WatchSyncMedia{MediaType: pluginv1.WatchSyncMediaType_WATCH_SYNC_MEDIA_TYPE_EPISODE, ExternalIds: map[string]string{"tvdb": "1"}}}
+		bare := seriesEvent(op.name+"-bare", op.operation, nil)
+		for id, status := range statuses(t, applyEvents(t, server, episode, bare), episode, bare) {
+			if status != pluginv1.WatchSyncApplyStatus_WATCH_SYNC_APPLY_STATUS_REJECTED {
+				t.Errorf("%s = %v, want rejected", id, status)
+			}
+		}
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want none", requests)
+	}
+}
+
 func TestRatingEventsSendRatingsAndMapNotFound(t *testing.T) {
 	t.Parallel()
 	ratedAt := time.Date(2026, 4, 5, 6, 7, 8, 0, time.UTC)
