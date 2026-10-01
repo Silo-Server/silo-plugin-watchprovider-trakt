@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: off
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Configure module resolution
+        run: |
+          go env -w GOPROXY=direct
+          go env -w GOPRIVATE=github.com/Silo-Server/*
+          go env -w GONOSUMDB=github.com/Silo-Server/*
+
+      - name: Reject committed local SDK replaces
+        run: |
+          if grep -Eq '^replace github.com/Silo-Server/silo-plugin-sdk => /' go.mod; then
+            echo "go.mod contains a machine-local silo-plugin-sdk replace."
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Validate manifest
+        run: go run . manifest >/dev/null
+
+      - name: Build every release platform
+        run: make build-all
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Configure module resolution
+        run: |
+          go env -w GOPROXY=direct
+          go env -w GOPRIVATE=github.com/Silo-Server/*
+          go env -w GONOSUMDB=github.com/Silo-Server/*
+
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12

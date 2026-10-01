@@ -1,0 +1,6 @@
+/dist/
+/plugin
+
+# Local agent/tooling state
+/.agents/
+/.claude/

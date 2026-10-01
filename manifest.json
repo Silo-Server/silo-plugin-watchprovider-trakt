@@ -1,0 +1,85 @@
+{
+  "plugin_id": "silo.watchprovider.trakt",
+  "version": "0.1.0",
+  "checksum": "__CHECKSUM__",
+  "silo_api_version": "v1",
+  "supported_platforms": [
+    { "os": "darwin", "arch": "arm64" },
+    { "os": "linux", "arch": "amd64" },
+    { "os": "linux", "arch": "arm64" }
+  ],
+  "capabilities": [
+    {
+      "type": "watch_sync_provider.v1",
+      "id": "trakt",
+      "display_name": "Trakt",
+      "description": "Two-way watch history, resume progress, favorites, watchlist, and movie and show ratings, plus live scrobbling, for Trakt accounts.",
+      "watch_sync_provider": {
+        "auth_methods": ["WATCH_SYNC_AUTH_METHOD_DEVICE_CODE"],
+        "export_watched": true,
+        "export_unwatched": true,
+        "import_watched": true,
+        "import_progress": true,
+        "import_favorites": true,
+        "export_favorites": true,
+        "remove_favorites": true,
+        "import_watchlist": true,
+        "export_watchlist": true,
+        "remove_watchlist": true,
+        "scrobble_playback": true,
+        "import_ratings": true,
+        "export_ratings": true,
+        "supported_media_types": [
+          "WATCH_SYNC_MEDIA_TYPE_MOVIE",
+          "WATCH_SYNC_MEDIA_TYPE_EPISODE",
+          "WATCH_SYNC_MEDIA_TYPE_SERIES"
+        ],
+        "external_id_namespaces": ["imdb", "tmdb", "tvdb"],
+        "max_batch_size": 100
+      }
+    }
+  ],
+  "global_config_schema": [
+    {
+      "key": "app",
+      "title": "Trakt API app",
+      "description": "The Trakt API app this server signs in with. Every profile connection uses it.",
+      "json_schema": "{\"type\":\"object\",\"properties\":{\"client_id\":{\"type\":\"string\"},\"client_secret\":{\"type\":\"string\"}},\"additionalProperties\":false}",
+      "required": true,
+      "admin_form": {
+        "submit_label": "Save Trakt app",
+        "fields": [
+          {
+            "key": "client_id",
+            "label": "Client ID",
+            "description": "Client ID of your Trakt API app.",
+            "control": "ADMIN_FORM_CONTROL_TEXT",
+            "required": true
+          },
+          {
+            "key": "client_secret",
+            "label": "Client secret",
+            "description": "Client secret of your Trakt API app.",
+            "control": "ADMIN_FORM_CONTROL_PASSWORD",
+            "required": true,
+            "secret": true
+          }
+        ]
+      }
+    }
+  ],
+  "category": "Watch Providers",
+  "presentation": {
+    "display_name": "Trakt Watch Provider",
+    "summary": "Sync Silo watch activity, lists, and ratings with Trakt.",
+    "description_markdown": "Imports watched movies and episodes, resume progress, favorites, the watchlist, and movie and show ratings from Trakt. Exports completed plays, unwatched titles, favorites, watchlist changes, and ratings, and forwards live playback start, pause, and stop events.",
+    "setup_markdown": "Create an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with the redirect URI `urn:ietf:wg:oauth:2.0:oob`, then enter its client ID and client secret below. Each Silo profile then connects its own Trakt account from its watch-provider settings by entering a code at trakt.tv/activate.",
+    "homepage_url": "https://trakt.tv",
+    "source_url": "https://github.com/Silo-Server/silo-plugin-watchprovider-trakt",
+    "support_url": "https://github.com/Silo-Server/silo-plugin-watchprovider-trakt/issues",
+    "changelog_url": "https://github.com/Silo-Server/silo-plugin-watchprovider-trakt/releases",
+    "publisher_name": "Silo Server",
+    "publisher_url": "https://github.com/Silo-Server",
+    "license_spdx": "AGPL-3.0-only"
+  }
+}
