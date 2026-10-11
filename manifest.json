@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.watchprovider.trakt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -15,7 +15,7 @@
       "display_name": "Trakt",
       "description": "Two-way watch history, resume progress, favorites, watchlist, movie and show ratings, and dropped shows, plus live scrobbling, for Trakt accounts.",
       "watch_sync_provider": {
-        "auth_methods": ["WATCH_SYNC_AUTH_METHOD_DEVICE_CODE"],
+        "auth_methods": ["WATCH_SYNC_AUTH_METHOD_AUTHORIZATION_CODE", "WATCH_SYNC_AUTH_METHOD_DEVICE_CODE"],
         "export_watched": true,
         "export_unwatched": true,
         "import_watched": true,
@@ -60,9 +60,8 @@
           {
             "key": "client_secret",
             "label": "Client secret",
-            "description": "Client secret of your Trakt API app.",
+            "description": "Only for a Trakt app created before PKCE. Leave this empty when Trakt says no secret was issued.",
             "control": "ADMIN_FORM_CONTROL_PASSWORD",
-            "required": true,
             "secret": true
           }
         ]
@@ -74,7 +73,7 @@
     "display_name": "Trakt Watch Provider",
     "summary": "Sync Silo watch activity, lists, ratings, and dropped shows with Trakt.",
     "description_markdown": "Imports watched movies and episodes, resume progress, favorites, the watchlist, movie and show ratings, and dropped shows from Trakt. Exports completed plays, unwatched titles, favorites, watchlist changes, ratings, and dropped shows, and forwards live playback start, pause, and stop events.",
-    "setup_markdown": "Create an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with the redirect URI `urn:ietf:wg:oauth:2.0:oob`, then enter its client ID and client secret below. Each Silo profile then connects its own Trakt account from its watch-provider settings by entering a code at trakt.tv/activate.",
+    "setup_markdown": "Create an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications). Trakt rejects `urn:ietf:wg:oauth:2.0:oob`. Set the redirect URI to your Silo public URL followed by `/api/v2/watch-providers/oauth/callback`. It has to be `https`. Leave PKCE on: Trakt does not issue a client secret for that app. Enter the client ID below and leave the client secret empty, unless the app is an older one that still shows a secret. Each Silo profile then connects its own Trakt account from its watch-provider settings.",
     "homepage_url": "https://trakt.tv",
     "source_url": "https://github.com/Silo-Server/silo-plugin-watchprovider-trakt",
     "support_url": "https://github.com/Silo-Server/silo-plugin-watchprovider-trakt/issues",

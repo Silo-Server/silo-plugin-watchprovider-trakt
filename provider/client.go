@@ -196,7 +196,7 @@ func responseFault(method, path string, sentToken bool, result httpResult) *plug
 			failed+": Trakt no longer accepts this connection's sign-in; reconnect Trakt")
 	case result.status == http.StatusUnauthorized, result.status == http.StatusForbidden:
 		return newFault(pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED,
-			failed+": Trakt rejected the server's app credentials; an administrator should check the Trakt client ID and secret in the plugin settings")
+			failed+": Trakt rejected the server's app credentials; an administrator should check the Trakt client ID in the plugin settings")
 	case result.status == statusAccountLimitExceeded:
 		if limit := strings.TrimSpace(result.header.Get("X-Account-Limit")); digitsPattern.MatchString(limit) {
 			return newFault(pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED,

@@ -38,6 +38,9 @@ func (d *deviceAuthorization) Start(ctx context.Context, req *pluginv1.WatchSync
 	if fault != nil {
 		return &pluginv1.WatchSyncDeviceAuthorizationServiceStartResponse{Fault: fault}, nil
 	}
+	if client.app.clientSecret == "" {
+		return &pluginv1.WatchSyncDeviceAuthorizationServiceStartResponse{Fault: newFault(pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED, deviceSecretMessage)}, nil
+	}
 	ctx, cancel, _ := d.server.window(ctx)
 	defer cancel()
 	body, _ := json.Marshal(map[string]string{"client_id": client.app.clientID})
@@ -79,11 +82,13 @@ func (d *deviceAuthorization) Poll(ctx context.Context, req *pluginv1.WatchSyncD
 	}
 	ctx, cancel, _ := d.server.window(ctx)
 	defer cancel()
-	body, _ := json.Marshal(map[string]string{
-		"code":          state.DeviceCode,
-		"client_id":     client.app.clientID,
-		"client_secret": client.app.clientSecret,
-	})
+	if client.app.clientSecret == "" {
+		return &pluginv1.WatchSyncDeviceAuthorizationServicePollResponse{Fault: newFault(pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED, deviceSecretMessage)}, nil
+	}
+	body, _ := json.Marshal(withClientSecret(client.app, map[string]string{
+		"code":      state.DeviceCode,
+		"client_id": client.app.clientID,
+	}))
 	var token traktToken
 	result, fault := client.roundTrip(ctx, http.MethodPost, deviceTokenPath, nil, body, &token)
 	if fault != nil {

@@ -34,7 +34,7 @@ func TestManifestIdentifiesTheTraktProvider(t *testing.T) {
 		t.Fatalf("capability = %q %q %q", capability.GetType(), capability.GetId(), capability.GetDisplayName())
 	}
 	if len(capability.GetConfigSchema()) != 0 {
-		t.Fatalf("connection config = %v; device-code providers take none", capability.GetConfigSchema())
+		t.Fatalf("connection config = %v; Trakt takes none per connection", capability.GetConfigSchema())
 	}
 }
 
@@ -71,8 +71,11 @@ func TestManifestAdvertisesTheBuiltInCapabilities(t *testing.T) {
 	if descriptor.GetProvidesWatchlistOrder() {
 		t.Error("provides_watchlist_order is advertised; Trakt's watchlist order is not synced")
 	}
-	if !reflect.DeepEqual(descriptor.GetAuthMethods(), []pluginv1.WatchSyncAuthMethod{pluginv1.WatchSyncAuthMethod_WATCH_SYNC_AUTH_METHOD_DEVICE_CODE}) {
-		t.Errorf("auth methods = %v, want device code", descriptor.GetAuthMethods())
+	if !reflect.DeepEqual(descriptor.GetAuthMethods(), []pluginv1.WatchSyncAuthMethod{
+		pluginv1.WatchSyncAuthMethod_WATCH_SYNC_AUTH_METHOD_AUTHORIZATION_CODE,
+		pluginv1.WatchSyncAuthMethod_WATCH_SYNC_AUTH_METHOD_DEVICE_CODE,
+	}) {
+		t.Errorf("auth methods = %v", descriptor.GetAuthMethods())
 	}
 	wantMedia := []pluginv1.WatchSyncMediaType{
 		pluginv1.WatchSyncMediaType_WATCH_SYNC_MEDIA_TYPE_MOVIE,
@@ -105,7 +108,7 @@ func TestManifestDeclaresTheTraktAppConfig(t *testing.T) {
 	if id := fields["client_id"]; id == nil || id.GetSecret() || id.GetControl() == pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_PASSWORD || !id.GetRequired() {
 		t.Fatalf("client_id field = %v", id)
 	}
-	if secret := fields["client_secret"]; secret == nil || !secret.GetSecret() || !secret.GetRequired() {
+	if secret := fields["client_secret"]; secret == nil || !secret.GetSecret() || secret.GetRequired() {
 		t.Fatalf("client_secret field = %v", secret)
 	}
 	if len(fields) != 2 {

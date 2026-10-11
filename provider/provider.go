@@ -23,8 +23,11 @@ const (
 	syncBudget         = 90 * time.Second
 	syncDeadlineMargin = 10 * time.Second
 
-	notConfiguredMessage = "Trakt is not set up on this server: an administrator must enter the Trakt app's client ID and client secret in the plugin settings"
-	timeLimitMessage     = "Trakt sync time limit reached; the event will be retried"
+	notConfiguredMessage = "Trakt is not set up on this server: an administrator must enter the Trakt app's client ID in the plugin settings"
+	// deviceSecretMessage is for the device-code flow, which Trakt still
+	// authenticates with a client secret. PKCE apps do not have one.
+	deviceSecretMessage = "Trakt device sign-in needs this app's client secret. A PKCE app has none: register the https redirect URI and connect in the browser instead"
+	timeLimitMessage    = "Trakt sync time limit reached; the event will be retried"
 )
 
 // Server implements the watch-sync provider for Trakt. It keeps no state
@@ -109,10 +112,19 @@ func appConfigFrom(config *pluginv1.WatchSyncProviderConfig) (appConfig, *plugin
 		return strings.TrimSpace(config.GetSecretValues()[key])
 	}
 	app := appConfig{clientID: lookup(configClientID), clientSecret: lookup(configClientSecret)}
-	if app.clientID == "" || app.clientSecret == "" {
+	if app.clientID == "" {
 		return appConfig{}, newFault(pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED, notConfiguredMessage)
 	}
 	return app, nil
+}
+
+// withClientSecret adds the client secret when this app still has one. PKCE
+// apps do not, and Trakt rejects a secret on those token requests.
+func withClientSecret(app appConfig, fields map[string]string) map[string]string {
+	if app.clientSecret != "" {
+		fields["client_secret"] = app.clientSecret
+	}
+	return fields
 }
 
 // appClient returns a client for the unauthenticated OAuth endpoints.
@@ -206,18 +218,24 @@ func (s *Server) RefreshCredentials(ctx context.Context, req *pluginv1.WatchSync
 	}
 	ctx, cancel, _ := s.window(ctx)
 	defer cancel()
-	var token traktToken
-	if _, _, fault := client.do(ctx, http.MethodPost, "/oauth/token", nil, map[string]string{
+	fields := withClientSecret(client.app, map[string]string{
 		"refresh_token": refreshToken,
 		"client_id":     client.app.clientID,
-		"client_secret": client.app.clientSecret,
 		"grant_type":    "refresh_token",
-	}, &token); fault != nil {
+	})
+	if redirectURI := strings.TrimSpace(auth.GetCredentials().GetSecretAttributes()["redirect_uri"]); redirectURI != "" {
+		fields["redirect_uri"] = redirectURI
+	}
+	var token traktToken
+	if _, _, fault := client.do(ctx, http.MethodPost, "/oauth/token", nil, fields, &token); fault != nil {
 		return &pluginv1.WatchSyncCredentialResponse{Fault: fault}, nil
 	}
 	credentials := s.credentials(token, refreshToken)
 	if credentials == nil {
 		return &pluginv1.WatchSyncCredentialResponse{Fault: temporaryFault("Trakt returned no access token")}, nil
+	}
+	if redirectURI := strings.TrimSpace(auth.GetCredentials().GetSecretAttributes()[redirectAttribute]); redirectURI != "" {
+		credentials.SecretAttributes = map[string]string{redirectAttribute: redirectURI}
 	}
 	return &pluginv1.WatchSyncCredentialResponse{Credentials: credentials}, nil
 }

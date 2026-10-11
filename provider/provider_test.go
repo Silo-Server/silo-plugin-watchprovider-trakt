@@ -26,7 +26,6 @@ func TestMissingAppConfigIsReportedOnEveryRPC(t *testing.T) {
 
 	for name, config := range map[string]*pluginv1.WatchSyncProviderConfig{
 		"none":           nil,
-		"no secret":      {Values: map[string]string{configClientID: testClientID}},
 		"no client ID":   {SecretValues: map[string]string{configClientSecret: testClientSecret}},
 		"blank client":   {Values: map[string]string{configClientID: "  "}, SecretValues: map[string]string{configClientSecret: testClientSecret}},
 		"wrong key name": {Values: map[string]string{"client_id": testClientID}, SecretValues: map[string]string{"client_secret": testClientSecret}},
@@ -39,9 +38,12 @@ func TestMissingAppConfigIsReportedOnEveryRPC(t *testing.T) {
 		account, _ := server.GetAccount(ctx, &pluginv1.WatchSyncGetAccountRequest{Context: auth})
 		apply, _ := server.ApplyEvents(ctx, &pluginv1.WatchSyncApplyEventsRequest{Context: auth, Events: []*pluginv1.WatchSyncEvent{watchedMovie("h1", "1", time.Now())}})
 		list, _ := server.ListRemoteState(ctx, &pluginv1.WatchSyncListRemoteStateRequest{Context: auth})
+		init, _ := server.InitAuthorize(ctx, &pluginv1.WatchSyncInitAuthorizeRequest{CapabilityId: capabilityID, ProviderConfig: config, RedirectUri: "https://silo.example/cb", State: "state"})
+		exchange, _ := server.ExchangeCode(ctx, &pluginv1.WatchSyncExchangeCodeRequest{CapabilityId: capabilityID, ProviderConfig: config, RedirectUri: "https://silo.example/cb", AuthorizationCode: "code"})
 		for rpc, f := range map[string]*pluginv1.WatchSyncFault{
 			"Start": start.GetFault(), "Poll": poll.GetFault(), "RefreshCredentials": refresh.GetFault(),
 			"GetAccount": account.GetFault(), "ApplyEvents": apply.GetFault(), "ListRemoteState": list.GetFault(),
+			"InitAuthorize": init.GetFault(), "ExchangeCode": exchange.GetFault(),
 		} {
 			if f.GetCode() != pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED || f.GetSafeMessage() != notConfiguredMessage {
 				t.Errorf("%s %s: fault = %v", name, rpc, f)

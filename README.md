@@ -2,11 +2,13 @@
 
 Syncs Silo profiles with their [Trakt](https://trakt.tv) accounts through Silo's `watch_sync_provider.v1` plugin contract. It replaces the Trakt provider that was built into the Silo server, with the same behavior and the same stored identifiers, so existing connections carry over.
 
+Version 0.3.0 signs profiles in with PKCE in the browser. A Silo server that only understands device-code watch providers still loads this plugin and keeps the device-code sign-in, which needs a client secret. Connecting an app that Trakt created without a secret needs a Silo server that accepts authorization-code watch providers.
+
 Version 0.2.0 needs a Silo server whose plugin host supports `silo-plugin-sdk` v0.21, the release that added dropped shows to the contract. An older server ignores the plugin's dropped-show support and syncs everything else.
 
 ## Capabilities
 
-- Signs each profile in with Trakt's device code: Silo shows a code, and the profile owner enters it at trakt.tv/activate.
+- Signs each profile in with PKCE in the browser. Trakt redirects back to the Silo server's https callback. Servers that only support device codes still show a code for the profile owner to enter at trakt.tv/activate, which needs a client secret.
 - Imports watched movies and episodes with their play counts and last watch times.
 - Imports resume progress for movies and episodes.
 - Imports favorites, the watchlist, and movie and show ratings as complete lists, so a title removed on Trakt is removed in Silo.
@@ -24,11 +26,11 @@ The plugin keeps to Trakt's rate limits for each connection: one write per secon
 
 ## Setup
 
-1. Create an API app at [trakt.tv/oauth/applications/new](https://trakt.tv/oauth/applications/new). Trakt requires a redirect URI; enter `urn:ietf:wg:oauth:2.0:oob`. Device sign-in does not use it.
-2. Install the plugin in Silo, open its settings, and enter the app's **Client ID** and **Client secret**. Every profile on the server connects through this one app.
-3. Each profile connects its own Trakt account from its watch-provider settings.
+1. Create an API app at [trakt.tv/oauth/applications/new](https://trakt.tv/oauth/applications/new). Set the redirect URI to your Silo public URL followed by `/api/v2/watch-providers/oauth/callback`, for example `https://silo.example/api/v2/watch-providers/oauth/callback`. Trakt accepts `https` addresses only, and it rejects `urn:ietf:wg:oauth:2.0:oob`. Leave PKCE enabled. Trakt does not issue a client secret for that app.
+2. Install the plugin in Silo, open its settings, and enter the app's **Client ID**. Leave **Client secret** empty unless the app is an older one that still shows a secret. Every profile on the server connects through this one app.
+3. Each profile connects its own Trakt account from its watch-provider settings. Silo sends the browser to Trakt and Trakt sends it back to the redirect URI above.
 
-Until the client ID and secret are set, every Trakt request fails with a message asking an administrator to configure the plugin.
+Until the client ID is set, every Trakt request fails with a message asking an administrator to configure the plugin. The server's public URL has to be that same `https` origin, or Trakt will not send the browser back.
 
 ## Upgrading from Silo's built-in Trakt provider
 
