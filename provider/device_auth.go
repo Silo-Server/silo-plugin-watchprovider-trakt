@@ -79,11 +79,7 @@ func (d *deviceAuthorization) Poll(ctx context.Context, req *pluginv1.WatchSyncD
 	}
 	ctx, cancel, _ := d.server.window(ctx)
 	defer cancel()
-	body, _ := json.Marshal(map[string]string{
-		"code":          state.DeviceCode,
-		"client_id":     client.app.clientID,
-		"client_secret": client.app.clientSecret,
-	})
+	body, _ := json.Marshal(client.app.oauthBody(map[string]string{"code": state.DeviceCode}))
 	var token traktToken
 	result, fault := client.roundTrip(ctx, http.MethodPost, deviceTokenPath, nil, body, &token)
 	if fault != nil {

@@ -23,7 +23,7 @@ const (
 	syncBudget         = 90 * time.Second
 	syncDeadlineMargin = 10 * time.Second
 
-	notConfiguredMessage = "Trakt is not set up on this server: an administrator must enter the Trakt app's client ID and client secret in the plugin settings"
+	notConfiguredMessage = "Trakt is not set up on this server: an administrator must enter the Trakt app's client ID in the plugin settings"
 	timeLimitMessage     = "Trakt sync time limit reached; the event will be retried"
 )
 
@@ -99,8 +99,20 @@ type appConfig struct {
 	clientSecret string
 }
 
+// oauthBody adds the app credentials to the fields of an OAuth request body.
+// Trakt deprecated the client secret in October 2026 and may not issue one to
+// newer apps, so it is sent only when an administrator saved one.
+func (a appConfig) oauthBody(fields map[string]string) map[string]string {
+	fields["client_id"] = a.clientID
+	if a.clientSecret != "" {
+		fields["client_secret"] = a.clientSecret
+	}
+	return fields
+}
+
 // appConfigFrom reads the Trakt app credentials. The host sends the public
-// client ID in values and the secret in secret_values; either map is accepted.
+// client ID in values and the optional secret in secret_values; either map is
+// accepted.
 func appConfigFrom(config *pluginv1.WatchSyncProviderConfig) (appConfig, *pluginv1.WatchSyncFault) {
 	lookup := func(key string) string {
 		if value := strings.TrimSpace(config.GetValues()[key]); value != "" {
@@ -109,7 +121,7 @@ func appConfigFrom(config *pluginv1.WatchSyncProviderConfig) (appConfig, *plugin
 		return strings.TrimSpace(config.GetSecretValues()[key])
 	}
 	app := appConfig{clientID: lookup(configClientID), clientSecret: lookup(configClientSecret)}
-	if app.clientID == "" || app.clientSecret == "" {
+	if app.clientID == "" {
 		return appConfig{}, newFault(pluginv1.WatchSyncFaultCode_WATCH_SYNC_FAULT_CODE_PERMISSION_DENIED, notConfiguredMessage)
 	}
 	return app, nil
@@ -207,12 +219,10 @@ func (s *Server) RefreshCredentials(ctx context.Context, req *pluginv1.WatchSync
 	ctx, cancel, _ := s.window(ctx)
 	defer cancel()
 	var token traktToken
-	if _, _, fault := client.do(ctx, http.MethodPost, "/oauth/token", nil, map[string]string{
+	if _, _, fault := client.do(ctx, http.MethodPost, "/oauth/token", nil, client.app.oauthBody(map[string]string{
 		"refresh_token": refreshToken,
-		"client_id":     client.app.clientID,
-		"client_secret": client.app.clientSecret,
 		"grant_type":    "refresh_token",
-	}, &token); fault != nil {
+	}), &token); fault != nil {
 		return &pluginv1.WatchSyncCredentialResponse{Fault: fault}, nil
 	}
 	credentials := s.credentials(token, refreshToken)

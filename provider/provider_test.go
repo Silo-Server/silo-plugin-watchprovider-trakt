@@ -26,7 +26,6 @@ func TestMissingAppConfigIsReportedOnEveryRPC(t *testing.T) {
 
 	for name, config := range map[string]*pluginv1.WatchSyncProviderConfig{
 		"none":           nil,
-		"no secret":      {Values: map[string]string{configClientID: testClientID}},
 		"no client ID":   {SecretValues: map[string]string{configClientSecret: testClientSecret}},
 		"blank client":   {Values: map[string]string{configClientID: "  "}, SecretValues: map[string]string{configClientSecret: testClientSecret}},
 		"wrong key name": {Values: map[string]string{"client_id": testClientID}, SecretValues: map[string]string{"client_secret": testClientSecret}},

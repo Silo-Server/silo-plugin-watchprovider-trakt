@@ -3,9 +3,11 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -229,6 +231,73 @@ func TestRefreshReturnsTheRotatedTokens(t *testing.T) {
 	if credentials.GetAccessToken() != "next-access" || credentials.GetRefreshToken() != "next-refresh" ||
 		!credentials.GetExpiresAt().AsTime().Equal(now.Add(24*time.Hour)) || len(credentials.GetSecretAttributes()) != 0 {
 		t.Fatalf("credentials = %v", credentials)
+	}
+}
+
+// Trakt apps created after its October 2026 PKCE change may have no client
+// secret. Such an app signs in, refreshes, and syncs with its client ID alone,
+// and no OAuth body carries an empty client_secret.
+func TestAppWithoutClientSecretSignsInAndRefreshes(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	bodies := map[string]map[string]string{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("trakt-api-key") != testClientID {
+			t.Errorf("%s trakt-api-key = %q", r.URL.Path, r.Header.Get("trakt-api-key"))
+		}
+		if r.Method == http.MethodPost {
+			var body map[string]string
+			decodeBody(t, r, &body)
+			mu.Lock()
+			bodies[r.URL.Path] = body
+			mu.Unlock()
+		}
+		switch r.URL.Path {
+		case deviceCodePath:
+			writeFixture(t, w, `{"device_code":"device-code","user_code":"5055CC52","verification_url":"https://trakt.tv/activate","expires_in":600,"interval":5}`)
+		case deviceTokenPath, "/oauth/token":
+			writeFixture(t, w, `{"access_token":"new-access","refresh_token":"new-refresh","expires_in":86400}`)
+		case "/users/settings":
+			writeFixture(t, w, `{"user":{"username":"sean","ids":{"slug":"sean"}}}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+	server, _ := newTestServer(t, upstream)
+	config := &pluginv1.WatchSyncProviderConfig{Values: map[string]string{configClientID: testClientID}}
+	ctx := context.Background()
+
+	start, _ := server.DeviceAuthorization().Start(ctx, &pluginv1.WatchSyncDeviceAuthorizationServiceStartRequest{CapabilityId: capabilityID, ProviderConfig: config})
+	if start.GetFault() != nil || start.GetUserCode() != "5055CC52" {
+		t.Fatalf("start = %v", start)
+	}
+	poll, _ := server.DeviceAuthorization().Poll(ctx, &pluginv1.WatchSyncDeviceAuthorizationServicePollRequest{
+		CapabilityId: capabilityID, ProviderConfig: config, ProviderState: start.GetProviderState(),
+	})
+	if poll.GetStatus() != pluginv1.WatchSyncDeviceAuthorizationStatus_WATCH_SYNC_DEVICE_AUTHORIZATION_STATUS_AUTHORIZED {
+		t.Fatalf("poll = %v", poll)
+	}
+	auth := authContext(testAccessToken)
+	auth.ProviderConfig = config
+	refresh, _ := server.RefreshCredentials(ctx, &pluginv1.WatchSyncRefreshCredentialsRequest{Context: auth})
+	if refresh.GetFault() != nil || refresh.GetCredentials().GetAccessToken() != "new-access" {
+		t.Fatalf("refresh = %v", refresh)
+	}
+	account, _ := server.GetAccount(ctx, &pluginv1.WatchSyncGetAccountRequest{Context: auth})
+	if account.GetFault() != nil || account.GetAccount().GetExternalSubject() != "sean" {
+		t.Fatalf("account = %v", account)
+	}
+
+	want := map[string]map[string]string{
+		deviceCodePath:  {"client_id": testClientID},
+		deviceTokenPath: {"code": "device-code", "client_id": testClientID},
+		"/oauth/token":  {"refresh_token": testRefreshToken, "client_id": testClientID, "grant_type": "refresh_token"},
+	}
+	for path, wantBody := range want {
+		if got := bodies[path]; !maps.Equal(got, wantBody) {
+			t.Errorf("%s body = %v, want %v", path, got, wantBody)
+		}
 	}
 }
 

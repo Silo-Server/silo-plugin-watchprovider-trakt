@@ -105,7 +105,7 @@ func TestManifestDeclaresTheTraktAppConfig(t *testing.T) {
 	if id := fields["client_id"]; id == nil || id.GetSecret() || id.GetControl() == pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_PASSWORD || !id.GetRequired() {
 		t.Fatalf("client_id field = %v", id)
 	}
-	if secret := fields["client_secret"]; secret == nil || !secret.GetSecret() || !secret.GetRequired() {
+	if secret := fields["client_secret"]; secret == nil || !secret.GetSecret() || secret.GetRequired() {
 		t.Fatalf("client_secret field = %v", secret)
 	}
 	if len(fields) != 2 {

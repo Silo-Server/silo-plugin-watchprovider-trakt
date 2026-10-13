@@ -24,11 +24,12 @@ The plugin keeps to Trakt's rate limits for each connection: one write per secon
 
 ## Setup
 
-1. Create an API app at [trakt.tv/oauth/applications/new](https://trakt.tv/oauth/applications/new). Trakt requires a redirect URI; enter `urn:ietf:wg:oauth:2.0:oob`. Device sign-in does not use it.
-2. Install the plugin in Silo, open its settings, and enter the app's **Client ID** and **Client secret**. Every profile on the server connects through this one app.
-3. Each profile connects its own Trakt account from its watch-provider settings.
+1. Create an API app on the [Trakt developer portal](https://developer.trakt.tv/apps). Trakt requires a verified GitHub account to create one.
+2. Trakt's form requires a redirect URI, but device sign-in never uses it. Enter an `https://` address you control, such as your Silo server's. `urn:ietf:wg:oauth:2.0:oob` also works: Trakt marks it as insecure but still saves it.
+3. Install the plugin in Silo, open its settings, and enter the app's **Client ID**. Enter its **Client secret** only if Trakt issued one; since October 2026 Trakt treats the secret as deprecated, and newer apps may show it as not issued. Every profile on the server connects through this one app.
+4. Each profile connects its own Trakt account from its watch-provider settings.
 
-Until the client ID and secret are set, every Trakt request fails with a message asking an administrator to configure the plugin.
+Until the client ID is set, every Trakt request fails with a message asking an administrator to configure the plugin. The plugin sends the client secret only when one is saved; when you switch to an app without one, select **Clear saved secret** in the plugin settings.
 
 ## Upgrading from Silo's built-in Trakt provider
 
